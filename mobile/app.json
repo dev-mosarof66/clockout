@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Clockout",
+    "slug": "clockout",
+    "version": "1.0.0",
+    "scheme": "clockout",
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png"
+    },
+    "experiments": {
+      "tsconfigPaths": true,
+      "typedRoutes": true
+    },
+    "plugins": [
+      "expo-router",
+      "expo-notifications",
+      "./plugins/withArOptional",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0A0A0A"
+        }
+      ]
+    ],
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.clockout.app"
+    },
+    "android": {
+      "package": "com.clockout.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F97316"
+      }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ba687650-f57b-4b96-8268-bebda2c07471"
+      }
+    },
+    "owner": "mosarof066"
+  }
+}

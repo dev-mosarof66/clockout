@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+dist/
+build/
+web-build/
+*.log
+.DS_Store
+.env
+.env.local
+.env*.local
+
+# Prebuild output (Continuous Native Generation) — regenerated, not committed.
+/mobile/android/
+/mobile/ios/

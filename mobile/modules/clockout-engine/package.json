@@ -1,0 +1,7 @@
+{
+  "name": "clockout-engine",
+  "version": "0.1.0",
+  "description": "Clockout after-hours detection engine (Android-only, local Expo module)",
+  "main": "index.ts",
+  "private": true
+}

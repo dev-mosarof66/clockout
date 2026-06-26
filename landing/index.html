@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#0A0A0A" />
+
+    <!-- Phase 0 only: keep the validation page out of search results so the idea
+         isn't trivially discoverable while we test. Traffic comes from direct
+         links (Reddit/HN/email), so no SEO is lost. Social previews still work —
+         OG scrapers fetch directly and ignore this. REMOVE before public launch. -->
+    <meta name="robots" content="noindex, nofollow" />
+
+    <title>Clockout — Reclaim your evenings automatically</title>
+    <meta
+      name="description"
+      content="Clockout auto-detects your work apps and gently clocks you out after hours, so remote professionals stop checking Slack at 10pm. Android first. On-device & private."
+    />
+
+    <!-- Open Graph (Facebook, LinkedIn, Slack, Discord) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Clockout" />
+    <meta property="og:title" content="Your workday should end. Your phone disagrees." />
+    <meta
+      property="og:description"
+      content="The app that automatically clocks you out of work after hours, so remote workers stop checking Slack at 10pm."
+    />
+    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Your workday should end. Your phone disagrees." />
+    <meta
+      name="twitter:description"
+      content="Clockout automatically logs you out of work apps after hours. Reclaim your evenings."
+    />
+    <meta name="twitter:image" content="/og-image.png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
