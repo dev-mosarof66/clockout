@@ -67,9 +67,6 @@ export default function App() {
                 <span className="w-1.5 h-1.5 rounded-full bg-[#F97316]"></span>
                 <span>Early access: <strong className="text-[#FAFAFA]">{config.waitlistBase + signupCount}</strong></span>
               </div>
-              {!isConfigured.capture && (
-                <span className="text-amber-500/80 hidden md:inline">Dev mode — capture endpoint not set</span>
-              )}
             </div>
 
             <button
