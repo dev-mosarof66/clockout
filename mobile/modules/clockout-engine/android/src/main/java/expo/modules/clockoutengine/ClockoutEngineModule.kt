@@ -106,21 +106,23 @@ class ClockoutEngineModule : Module() {
     // Show the system "allow background activity / ignore optimizations" prompt;
     // falls back to the battery-optimization list if the direct dialog is blocked.
     Function("requestIgnoreBatteryOptimizations") {
-      val ctx = appContext.reactContext ?: return@Function
-      val direct = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-        data = Uri.parse("package:${ctx.packageName}")
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-      }
-      try {
-        if (direct.resolveActivity(ctx.packageManager) != null) {
-          ctx.startActivity(direct)
-        } else {
-          ctx.startActivity(
-            Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-              .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-          )
+      val ctx = appContext.reactContext
+      if (ctx != null) {
+        val direct = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+          data = Uri.parse("package:${ctx.packageName}")
+          addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-      } catch (_: Throwable) {
+        try {
+          if (direct.resolveActivity(ctx.packageManager) != null) {
+            ctx.startActivity(direct)
+          } else {
+            ctx.startActivity(
+              Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+          }
+        } catch (_: Throwable) {
+        }
       }
     }
 
