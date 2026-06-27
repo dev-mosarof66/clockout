@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { WorkApp, WorkSchedule, AppLog, SimulatorStats } from '../types';
 import { INITIAL_WORK_APPS, SMART_SUGGESTIONS } from '../data/mockData';
+import Logo from './Logo';
 
 interface PhoneSimulatorProps {
   onStatsChange: (stats: SimulatorStats) => void;
@@ -410,8 +411,8 @@ export default function PhoneSimulator({
               {onboardingStep === 0 && (
                 <div className="flex-1 flex flex-col justify-between py-4 animate-fadeIn">
                   <div className="flex flex-col items-center text-center mt-6">
-                    <div className="w-14 h-14 rounded-2xl bg-[#F97316] flex items-center justify-center shadow-lg shadow-[#F97316]/30 mb-4 border border-[#F97316]/20">
-                      <Clock className="w-8 h-8 text-black stroke-[2.5] animate-spin-slow" />
+                    <div className="mb-4">
+                      <Logo size={64} />
                     </div>
                     <h1 className="text-2xl font-bold tracking-tight text-white font-display">Clockout</h1>
                     <p className="text-xs text-[#F97316] font-medium mt-1 uppercase tracking-widest">Reclaim your evenings</p>

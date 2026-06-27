@@ -35,10 +35,12 @@ class ClockoutOverlay(private val ctx: Context) {
   private var view: View? = null
 
   // Palette — mirrors theme/colors.ts.
-  private val background = Color.parseColor("#0A0A0A")
+  // Named bgColor/fgColor (not background/foreground) so they don't shadow
+  // View.background / View.foreground (both Drawable) inside apply { } blocks.
+  private val bgColor = Color.parseColor("#0A0A0A")
   private val card = Color.parseColor("#171717")
   private val elevated = Color.parseColor("#1F1F1F")
-  private val foreground = Color.parseColor("#FAFAFA")
+  private val fgColor = Color.parseColor("#FAFAFA")
   private val muted = Color.parseColor("#A3A3A3")
   private val subtle = Color.parseColor("#525252")
   private val orange = Color.parseColor("#F97316")
@@ -133,7 +135,7 @@ class ClockoutOverlay(private val ctx: Context) {
     val root = LinearLayout(ctx).apply {
       orientation = LinearLayout.VERTICAL
       gravity = Gravity.CENTER_HORIZONTAL
-      setBackgroundColor(background)
+      setBackgroundColor(bgColor)
       setPadding(dp(32), dp(80), dp(32), dp(48))
     }
 
@@ -151,7 +153,7 @@ class ClockoutOverlay(private val ctx: Context) {
     }
     val title = TextView(ctx).apply {
       text = "It's ${nowTime()}. Work's done."
-      setTextColor(foreground)
+      setTextColor(fgColor)
       textSize = 24f
       typeface = Typeface.DEFAULT_BOLD
       gravity = Gravity.CENTER
