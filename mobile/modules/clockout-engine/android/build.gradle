@@ -7,6 +7,11 @@ def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.ab
 apply from: expoModulesCorePlugin
 applyKotlinExpoModulesCorePlugin()
 useCoreDependencies()
+// Sets compileSdk/targetSdk from the root Expo project and creates the Android
+// library variants. Required before useExpoPublishing() (which publishes the
+// `release` variant) — without it Gradle fails with "does not specify compileSdk"
+// and "unknown property 'release'".
+useDefaultAndroidSdkVersions()
 useExpoPublishing()
 
 android {

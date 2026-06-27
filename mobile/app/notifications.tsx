@@ -87,8 +87,8 @@ export default function Notifications() {
               </View>
               <View className="flex-1">
                 <Text className="text-sm font-bold text-foreground">{n.title}</Text>
-                <Text className="text-[12px] leading-snug text-muted">{n.body}</Text>
-                <Text className="mt-0.5 text-[10px] text-subtle">{timeAgo(n.ts)}</Text>
+                <Text className="text-xs leading-snug text-muted">{n.body}</Text>
+                <Text className="mt-0.5 text-xs text-subtle">{timeAgo(n.ts)}</Text>
               </View>
               {n.onPress && <Ionicons name="chevron-forward" size={16} color={colors.subtle} />}
             </Pressable>

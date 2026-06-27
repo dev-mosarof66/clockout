@@ -8,8 +8,11 @@ import LottieView from 'lottie-react-native';
 import { Button } from '../../components/Button';
 import { ScheduleModal } from '../../components/ScheduleModal';
 import { AppsModal } from '../../components/AppsModal';
+import { BoundaryModal } from '../../components/BoundaryModal';
 import { useOnboarding } from '../../lib/onboarding';
 import { useStats } from '../../lib/stats';
+import { requestCalendarPermission } from '../../lib/calendar';
+import { capture } from '../../lib/analytics';
 import { colors } from '../../theme/colors';
 import { TAB_BAR_SPACE } from '../../components/TabBar';
 
@@ -92,10 +95,10 @@ function ToggleRow({
         <View className="flex-row items-center gap-1.5">
           <Text className="text-sm font-semibold text-foreground">{label}</Text>
           {badge && (
-            <Text className="text-[9px] font-black uppercase tracking-wider text-primary">{badge}</Text>
+            <Text className="text-xs font-black uppercase tracking-wider text-primary">{badge}</Text>
           )}
         </View>
-        {desc && <Text className="text-[11px] text-muted">{desc}</Text>}
+        {desc && <Text className="text-xs text-muted">{desc}</Text>}
       </View>
       <Switch
         value={value}
@@ -114,11 +117,34 @@ export default function Settings() {
   const s = data.schedule;
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
+  const [boundaryOpen, setBoundaryOpen] = useState(false);
+  const [editIndex, setEditIndex] = useState<number | null>(null);
 
   const toggleStrict = () => {
     if (!data.pro) return;
     update({ strict: !data.strict });
   };
+
+  const toggleCalendar = async () => {
+    if (!data.pro) return;
+    if (data.respectCalendar) {
+      update({ respectCalendar: false });
+      return;
+    }
+    const ok = await requestCalendarPermission();
+    update({ respectCalendar: ok });
+  };
+
+  const openNewBoundary = () => {
+    setEditIndex(null);
+    setBoundaryOpen(true);
+  };
+  const openEditBoundary = (i: number) => {
+    setEditIndex(i);
+    setBoundaryOpen(true);
+  };
+  const removeBoundary = (i: number) =>
+    update({ extraWindows: data.extraWindows.filter((_, idx) => idx !== i) });
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top','bottom']}>
@@ -168,7 +194,10 @@ export default function Settings() {
                 label="Upgrade"
                 size="sm"
                 fullWidth={false}
-                onPress={() => router.push('/paywall')}
+                onPress={() => {
+                  capture('upgrade_pressed');
+                  router.push('/paywall');
+                }}
               />
             )}
           </View>
@@ -225,7 +254,7 @@ export default function Settings() {
                       key={d}
                       className="h-7 w-7 items-center justify-center rounded-full border-2 bg-primary"
                       style={{ marginLeft: idx === 0 ? 0 : -8, borderColor: colors.card }}>
-                      <Text className="text-[9px] font-black text-primary-foreground">{DAY2[d]}</Text>
+                      <Text className="text-xs font-black text-primary-foreground">{DAY2[d]}</Text>
                     </View>
                   ))}
               </View>
@@ -242,8 +271,75 @@ export default function Settings() {
             value={data.strict && data.pro}
             onValueChange={toggleStrict}
             disabled={!data.pro}
+          />
+          <ToggleRow
+            icon="calendar-outline"
+            tint={colors.success}
+            label="Respect my calendar"
+            desc="Skip the nudge during real meetings."
+            badge={!data.pro ? 'Pro' : undefined}
+            value={data.respectCalendar && data.pro}
+            onValueChange={toggleCalendar}
+            disabled={!data.pro}
             last
           />
+        </Section>
+
+        {/* Extra boundaries (Pro multi-schedule) */}
+        <Section title="Extra boundaries">
+          {!data.pro ? (
+            <Pressable
+              onPress={() => router.push('/paywall')}
+              className="flex-row items-center gap-3 px-4 py-3.5 active:opacity-70">
+              <View
+                className="h-9 w-9 items-center justify-center rounded-xl"
+                style={{ backgroundColor: colors.primary + '22' }}>
+                <Ionicons name="shield-half-outline" size={17} color={colors.primary} />
+              </View>
+              <View className="flex-1">
+                <View className="flex-row items-center gap-1.5">
+                  <Text className="text-sm font-semibold text-foreground">Guard lunch & deep-work</Text>
+                  <Text className="text-xs font-black uppercase tracking-wider text-primary">Pro</Text>
+                </View>
+                <Text className="text-xs text-muted">Protect extra windows, not just after-hours.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.subtle} />
+            </Pressable>
+          ) : (
+            <>
+              {data.extraWindows.map((w, i) => (
+                <Pressable
+                  key={i}
+                  onPress={() => openEditBoundary(i)}
+                  className="flex-row items-center gap-3 border-b border-border px-4 py-3.5 active:opacity-70">
+                  <View
+                    className="h-9 w-9 items-center justify-center rounded-xl"
+                    style={{ backgroundColor: colors.warning + '22' }}>
+                    <Ionicons name="shield-half-outline" size={17} color={colors.warning} />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-sm font-semibold text-foreground">{w.label}</Text>
+                    <Text className="text-xs text-muted">
+                      {fmt(w.start)} – {fmt(w.end)} · {w.days.length} day{w.days.length === 1 ? '' : 's'}
+                    </Text>
+                  </View>
+                  <Pressable onPress={() => removeBoundary(i)} hitSlop={10} className="p-1 active:opacity-60">
+                    <Ionicons name="trash-outline" size={16} color={colors.destructive} />
+                  </Pressable>
+                </Pressable>
+              ))}
+              <Pressable
+                onPress={openNewBoundary}
+                className="flex-row items-center gap-3 px-4 py-3.5 active:opacity-70">
+                <View
+                  className="h-9 w-9 items-center justify-center rounded-xl"
+                  style={{ backgroundColor: colors.primary + '22' }}>
+                  <Ionicons name="add" size={18} color={colors.primary} />
+                </View>
+                <Text className="flex-1 text-sm font-semibold text-primary">Add a boundary</Text>
+              </Pressable>
+            </>
+          )}
         </Section>
 
         {/* Apps */}
@@ -258,6 +354,23 @@ export default function Settings() {
           />
         </Section>
 
+        {/* Routines */}
+        <Section title="Routines">
+          <Row
+            icon="bar-chart-outline"
+            tint={colors.primary}
+            label="Weekly report"
+            onPress={() => router.push('/weekly-report')}
+          />
+          <Row
+            icon="moon-outline"
+            tint={colors.warning}
+            label="Wind-down routine"
+            onPress={() => router.push('/winddown')}
+            last
+          />
+        </Section>
+
         {/* Notifications */}
         <Section title="Notifications">
           <ToggleRow
@@ -266,14 +379,39 @@ export default function Settings() {
             desc="“You’re clocked out 🎉” at end of workday."
             value={data.notifyClockout}
             onValueChange={() => update({ notifyClockout: !data.notifyClockout })}
+          />
+          <ToggleRow
+            icon="bar-chart-outline"
+            tint={colors.success}
+            label="Weekly report"
+            desc="Sunday recap of evenings reclaimed."
+            value={data.weeklyReport}
+            onValueChange={() => update({ weeklyReport: !data.weeklyReport })}
             last
           />
         </Section>
 
         {/* Privacy & about */}
         <Section title="Privacy & about">
-          <Row icon="shield-checkmark-outline" tint={colors.success} label="Data" value="On-device" />
-          <Row icon="document-text-outline" label="Privacy policy" onPress={() => {}} />
+          <Row
+            icon="shield-checkmark-outline"
+            tint={colors.success}
+            label="Your usage data"
+            value="On-device"
+          />
+          <ToggleRow
+            icon="bar-chart-outline"
+            tint={colors.muted}
+            label="Anonymous analytics"
+            desc="Share anonymous app events to improve Clockout. No personal data."
+            value={data.analytics}
+            onValueChange={() => update({ analytics: !data.analytics })}
+          />
+          <Row
+            icon="document-text-outline"
+            label="Privacy policy"
+            onPress={() => router.push('/privacy')}
+          />
           <Row icon="star-outline" label="Rate Clockout" onPress={() => {}} />
           <Row icon="information-circle-outline" label="Version" value="1.0.0" last />
         </Section>
@@ -292,11 +430,16 @@ export default function Settings() {
           </Text>
         </Pressable>
 
-        <Text className="text-center text-[11px] text-subtle">Clockout · on-device · private</Text>
+        <Text className="text-center text-xs text-subtle">Clockout · on-device · private</Text>
       </ScrollView>
 
       <ScheduleModal visible={scheduleOpen} onClose={() => setScheduleOpen(false)} />
       <AppsModal visible={appsOpen} onClose={() => setAppsOpen(false)} />
+      <BoundaryModal
+        visible={boundaryOpen}
+        editIndex={editIndex}
+        onClose={() => setBoundaryOpen(false)}
+      />
     </SafeAreaView>
   );
 }

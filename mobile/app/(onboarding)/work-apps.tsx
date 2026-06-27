@@ -1,11 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, ScrollView, TextInput } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { WORK_APPS, type WorkApp } from '../../data/workApps';
 import { Button } from '../../components/Button';
 import { AppIcon } from '../../components/AppIcon';
-import { useOnboarding } from '../../lib/onboarding';
+import { useOnboarding, FREE_APP_LIMIT } from '../../lib/onboarding';
+import { engineAvailable, hasUsageAccess, topPackages, type SuggestedApp } from '../../lib/engine';
+import { capture } from '../../lib/analytics';
+import { colors } from '../../theme/colors';
 
 export default function WorkApps() {
     const inset = useSafeAreaInsets()
@@ -32,20 +36,76 @@ export default function WorkApps() {
     return Object.fromEntries(WORK_APPS.map((a) => [a.id, !!a.preselected]));
   });
   const [draft, setDraft] = useState('');
+  const [limitHit, setLimitHit] = useState(false);
 
   const count = Object.values(selected).filter(Boolean).length;
+  const atFreeLimit = !data.pro && count >= FREE_APP_LIMIT;
 
-  const toggle = (id: string) => setSelected((s) => ({ ...s, [id]: !s[id] }));
+  const toggle = (id: string) =>
+    setSelected((s) => {
+      const turningOn = !s[id];
+      if (turningOn && !data.pro) {
+        const cur = Object.values(s).filter(Boolean).length;
+        if (cur >= FREE_APP_LIMIT) {
+          setLimitHit(true);
+          return s;
+        }
+      }
+      return { ...s, [id]: !s[id] };
+    });
 
   const addCustom = () => {
     const name = draft.trim();
     if (!name) return;
+    if (atFreeLimit) {
+      setLimitHit(true);
+      capture('app_limit_hit');
+      return;
+    }
     const id = `custom-${name.toLowerCase().replace(/\s+/g, '-')}`;
     if (!apps.some((a) => a.id === id)) {
       setApps((a) => [...a, { id, name, category: 'Custom', color: '#525252' }]);
       setSelected((s) => ({ ...s, [id]: true }));
     }
     setDraft('');
+  };
+
+  // Smart-suggest: detect frequently-used apps and offer the ones not yet picked.
+  const knownByPkg = useMemo(
+    () => Object.fromEntries(WORK_APPS.filter((a) => a.pkg).map((a) => [a.pkg as string, a])),
+    [],
+  );
+  const [suggested, setSuggested] = useState<SuggestedApp[]>([]);
+  useEffect(() => {
+    if (engineAvailable && hasUsageAccess()) setSuggested(topPackages(7));
+  }, []);
+
+  const suggestions = suggested
+    .map((s) => {
+      const known = knownByPkg[s.pkg];
+      return known
+        ? { id: known.id, name: known.name, color: known.color }
+        : {
+            id: `custom-${s.label.toLowerCase().replace(/\s+/g, '-')}`,
+            name: s.label,
+            color: '#525252',
+          };
+    })
+    .filter((x) => !selected[x.id])
+    .slice(0, 6);
+
+  const addSuggestion = (x: { id: string; name: string; color: string }) => {
+    if (atFreeLimit) {
+      setLimitHit(true);
+      capture('app_limit_hit');
+      return;
+    }
+    setApps((a) =>
+      a.some((p) => p.id === x.id)
+        ? a
+        : [...a, { id: x.id, name: x.name, category: 'Suggested', color: x.color }],
+    );
+    setSelected((s) => ({ ...s, [x.id]: true }));
   };
 
   return (
@@ -57,7 +117,7 @@ export default function WorkApps() {
             <View className="h-1.5 w-6 rounded-full bg-primary" />
             <View className="h-1.5 w-6 rounded-full bg-border" />
             <View className="h-1.5 w-6 rounded-full bg-border" />
-            <Text className="ml-1 text-[11px] font-bold uppercase tracking-widest text-muted">
+            <Text className="ml-1 text-xs font-bold uppercase tracking-widest text-muted">
               Step 1 of 3
             </Text>
           </View>
@@ -68,6 +128,29 @@ export default function WorkApps() {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+          {suggestions.length > 0 && (
+            <View className="mb-3 gap-2">
+              <View className="flex-row items-center gap-1.5">
+                <Ionicons name="sparkles" size={13} color={colors.primary} />
+                <Text className="text-xs font-bold uppercase tracking-widest text-muted">
+                  Suggested from your usage
+                </Text>
+              </View>
+              <View className="flex-row flex-wrap gap-2">
+                {suggestions.map((x) => (
+                  <Pressable
+                    key={x.id}
+                    onPress={() => addSuggestion(x)}
+                    className="flex-row items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1.5 active:opacity-80">
+                    <AppIcon id={x.id} name={x.name} color={x.color} size={18} />
+                    <Text className="text-xs font-bold text-foreground">{x.name}</Text>
+                    <Ionicons name="add" size={13} color={colors.primary} />
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
+
           <View className="gap-2.5">
             {apps.map((app) => {
               const on = !!selected[app.id];
@@ -81,7 +164,7 @@ export default function WorkApps() {
                   <AppIcon id={app.id} name={app.name} color={app.color} size={40} />
                   <View className="flex-1">
                     <Text className="text-sm font-bold text-foreground">{app.name}</Text>
-                    <Text className="text-[11px] text-muted">{app.category}</Text>
+                    <Text className="text-xs text-muted">{app.category}</Text>
                   </View>
                   <View
                     className={`h-6 w-6 items-center justify-center rounded-full border ${
@@ -115,9 +198,19 @@ export default function WorkApps() {
 
         {/* Footer */}
         <View className="gap-2 pt-3" style={{paddingBottom: inset.bottom - 20}}>
+          {(limitHit || atFreeLimit) && (
+            <View className="flex-row items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2.5">
+              <Ionicons name="sparkles-outline" size={15} color={colors.primary} />
+              <Text className="flex-1 text-xs leading-snug text-muted">
+                Free guards <Text className="font-bold text-foreground">{FREE_APP_LIMIT} apps</Text>.
+                Unlimited is a Pro feature — you can upgrade on the next screen.
+              </Text>
+            </View>
+          )}
           <Button
             disabled={count === 0}
             onPress={() => {
+              capture('work_apps_selected', { count });
               update({ workApps: apps.filter((a) => selected[a.id]).map((a) => a.id) });
               router.push('/work-hours');
             }}

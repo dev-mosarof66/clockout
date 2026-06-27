@@ -1,8 +1,12 @@
 import * as IntentLauncher from 'expo-intent-launcher';
-import * as Notifications from 'expo-notifications';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { Linking, Platform } from 'react-native';
 
 const PKG = 'com.clockout.app';
+
+// expo-notifications can't be imported eagerly — its push-token side effect
+// errors in Expo Go. Load it lazily and treat as ungranted there.
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
 
 // Deep-link into the system pages where each engine permission is granted.
 // (Usage-access and overlay can't be requested with a dialog — only toggled in
@@ -32,8 +36,15 @@ export async function openNotificationSettings() {
 }
 
 export async function notificationsGranted(): Promise<boolean> {
-  const p = await Notifications.getPermissionsAsync();
-  return p.status === 'granted';
+  if (isExpoGo) return false;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Notifications = require('expo-notifications') as typeof import('expo-notifications');
+    const p = await Notifications.getPermissionsAsync();
+    return p.status === 'granted';
+  } catch {
+    return false;
+  }
 }
 
 // Usage-access and overlay status can only be read natively (the clockout-engine

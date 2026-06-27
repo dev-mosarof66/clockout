@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import type {
   CustomerInfo,
   PurchasesOffering,
@@ -10,8 +11,14 @@ import type {
 const RC_KEY = process.env.EXPO_PUBLIC_RC_ANDROID_KEY ?? '';
 const ENTITLEMENT = 'pro';
 
+// RevenueCat's native module simply isn't present in Expo Go — and unlike Expo
+// modules, calling into it there can hang the bridge rather than fail cleanly.
+// So hard-disable purchases in Expo Go regardless of whether a key is set.
+const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
 // Lazy-require so Expo Go (no native module) doesn't crash on import.
 function getPurchases(): typeof import('react-native-purchases').default | null {
+  if (isExpoGo) return null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require('react-native-purchases').default;
@@ -20,13 +27,19 @@ function getPurchases(): typeof import('react-native-purchases').default | null 
   }
 }
 
+// Richer result so the UI can tell "user cancelled" apart from a real failure
+// (and show the reason) instead of every path collapsing to a silent `false`.
+export type PurchaseResult =
+  | { ok: true }
+  | { ok: false; cancelled: boolean; reason?: string };
+
 type Ctx = {
   available: boolean; // native module present AND key configured
   ready: boolean;
   isPro: boolean;
   offering: PurchasesOffering | null;
-  purchasePlan: (plan: 'monthly' | 'yearly') => Promise<boolean>;
-  restore: () => Promise<boolean>;
+  purchasePlan: (plan: 'monthly' | 'yearly') => Promise<PurchaseResult>;
+  restore: () => Promise<PurchaseResult>;
 };
 
 const PurchasesContext = createContext<Ctx | null>(null);
@@ -61,30 +74,60 @@ export function PurchasesProvider({ children }: { children: ReactNode }) {
     })();
   }, [available]);
 
-  const purchasePkg = async (pkg: PurchasesPackage | null): Promise<boolean> => {
-    if (!Purchases || !pkg) return false;
+  const purchasePkg = async (pkg: PurchasesPackage | null): Promise<PurchaseResult> => {
+    if (!Purchases) return { ok: false, cancelled: false, reason: 'In-app purchases are unavailable.' };
+    if (!pkg) {
+      // No package for the selected plan → the offering has no annual/monthly,
+      // or no "current" offering is configured in RevenueCat.
+      if (__DEV__) {
+        console.warn(
+          `[purchases] No package for this plan. offering=${offering?.identifier ?? 'null'} ` +
+            `packages=${offering?.availablePackages?.map((p) => p.identifier).join(',') ?? 'none'}`,
+        );
+      }
+      return { ok: false, cancelled: false, reason: 'No product is configured for this plan yet (check your RevenueCat offering).' };
+    }
     try {
       const { customerInfo } = await Purchases.purchasePackage(pkg);
-      const ok = !!customerInfo.entitlements.active[ENTITLEMENT];
+      const active = customerInfo.entitlements.active;
+      const ok = !!active[ENTITLEMENT];
       setIsPro(ok);
-      return ok;
-    } catch {
-      return false; // user cancelled or error
+      if (!ok && __DEV__) {
+        console.warn(
+          `[purchases] Purchase completed but "${ENTITLEMENT}" entitlement is NOT active. ` +
+            `Active entitlements: [${Object.keys(active).join(', ') || 'none'}]. ` +
+            `Attach the product to the "${ENTITLEMENT}" entitlement in RevenueCat.`,
+        );
+      }
+      return ok
+        ? { ok: true }
+        : {
+            ok: false,
+            cancelled: false,
+            reason: `Purchase went through but the "${ENTITLEMENT}" entitlement isn't active. Check the RevenueCat entitlement mapping.`,
+          };
+    } catch (e) {
+      const err = e as { userCancelled?: boolean; message?: string };
+      if (!err?.userCancelled && __DEV__) console.warn('[purchases] purchase error', e);
+      return { ok: false, cancelled: !!err?.userCancelled, reason: err?.message };
     }
   };
 
   const purchasePlan = (plan: 'monthly' | 'yearly') =>
     purchasePkg(plan === 'yearly' ? (offering?.annual ?? null) : (offering?.monthly ?? null));
 
-  const restore = async (): Promise<boolean> => {
-    if (!Purchases) return false;
+  const restore = async (): Promise<PurchaseResult> => {
+    if (!Purchases) return { ok: false, cancelled: false, reason: 'In-app purchases are unavailable.' };
     try {
       const info = await Purchases.restorePurchases();
       const ok = !!info.entitlements.active[ENTITLEMENT];
       setIsPro(ok);
-      return ok;
-    } catch {
-      return false;
+      return ok
+        ? { ok: true }
+        : { ok: false, cancelled: false, reason: 'No active subscription found to restore.' };
+    } catch (e) {
+      const err = e as { userCancelled?: boolean; message?: string };
+      return { ok: false, cancelled: !!err?.userCancelled, reason: err?.message };
     }
   };
 

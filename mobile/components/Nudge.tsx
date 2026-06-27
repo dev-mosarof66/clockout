@@ -53,7 +53,7 @@ export function Nudge({ visible, appName, time, strict = false, onClose }: Nudge
         <View className="flex-1 items-center justify-between px-8 pb-12 pt-20">
           {/* Top: context */}
           <View className="items-center gap-2">
-            <Text className="text-[11px] font-black uppercase tracking-[3px] text-primary">
+            <Text className="text-xs font-black uppercase tracking-[3px] text-primary">
               Boundary enforced
             </Text>
             <Text className="text-center text-2xl font-extrabold text-foreground">

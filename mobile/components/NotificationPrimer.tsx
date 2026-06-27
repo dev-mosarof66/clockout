@@ -27,7 +27,7 @@ export function NotificationPrimer({ visible, onEnable, onDismiss }: Notificatio
             <Text className="font-bold text-foreground">“You’re clocked out 🎉”</Text> — so you
             actually log off. No spam, just the one.
           </Text>
-          <Text className="text-center text-[11px] text-subtle">
+          <Text className="text-center text-xs text-subtle">
             Turn on notifications for Clockout in your settings.
           </Text>
 

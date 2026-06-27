@@ -46,7 +46,7 @@ function TabItem({
           <Ionicons name={focused ? icon.on : icon.off} size={22} color={focused ? colors.primary: colors.muted} />
         </View>
         {focused && (
-          <Text className="text-[10px] font-black uppercase tracking-wider text-primary">
+          <Text className="text-xs font-black uppercase tracking-wider text-primary">
             {label}
           </Text>
         )}

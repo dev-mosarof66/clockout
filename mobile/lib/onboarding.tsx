@@ -3,6 +3,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type Schedule = { start: number; end: number; days: number[] };
 
+// An extra guarded window (Pro) — e.g. a lunch break or deep-work block. Work
+// apps are guarded *inside* these windows even during work hours.
+export type GuardWindow = { label: string; start: number; end: number; days: number[] };
+
+// Free tier guards up to this many apps; Pro is unlimited (Build Spec §5).
+export const FREE_APP_LIMIT = 3;
+
 export type OnboardingData = {
   onboarded: boolean;
   workApps: string[]; // selected app ids
@@ -13,6 +20,11 @@ export type OnboardingData = {
   strict: boolean; // Strict Mode (no "open anyway") — Pro feature
   celebrated: boolean; // confetti shown on first home visit
   notifyClockout: boolean; // end-of-workday "you're clocked out" notification
+  weeklyReport: boolean; // weekly "evenings reclaimed" report + Sunday reminder
+  windDown: boolean; // wind-down routine surfaced/enabled
+  extraWindows: GuardWindow[]; // additional guarded windows (Pro multi-schedule)
+  respectCalendar: boolean; // skip the nudge during real calendar events (Pro)
+  analytics: boolean; // anonymous product analytics opt-in (off-device, opt-out)
   protectionSetupDone: boolean; // user has gone through the engine permission setup
 };
 
@@ -28,6 +40,11 @@ const DEFAULT: OnboardingData = {
   strict: false,
   celebrated: false,
   notifyClockout: true,
+  weeklyReport: true,
+  windDown: true,
+  extraWindows: [],
+  respectCalendar: false,
+  analytics: true,
   protectionSetupDone: false,
 };
 

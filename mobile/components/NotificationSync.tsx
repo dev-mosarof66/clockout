@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Linking, AppState } from 'react-native';
 import { useOnboarding } from '../lib/onboarding';
-import { syncClockoutNotifications, getNotificationStatus } from '../lib/notifications';
+import {
+  syncNotifications,
+  getNotificationStatus,
+  notificationsAvailable,
+} from '../lib/notifications';
 import { NotificationPrimer } from './NotificationPrimer';
 
 // Keeps scheduled clock-out reminders in sync with the saved schedule + toggle,
@@ -13,17 +17,22 @@ export function NotificationSync() {
 
   // Sync / decide whether to prompt when state changes.
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !notificationsAvailable) return;
     let alive = true;
+    const wantsAny = data.notifyClockout || data.weeklyReport;
     (async () => {
-      if (!data.notifyClockout) {
-        await syncClockoutNotifications(data.schedule, false);
+      if (!wantsAny) {
+        await syncNotifications({ schedule: data.schedule, clockout: false, weekly: false });
         return;
       }
       const { status } = await getNotificationStatus();
       if (!alive) return;
       if (status === 'granted') {
-        await syncClockoutNotifications(data.schedule, true);
+        await syncNotifications({
+          schedule: data.schedule,
+          clockout: data.notifyClockout,
+          weekly: data.weeklyReport,
+        });
       } else {
         setPrimer(true);
       }
@@ -31,21 +40,25 @@ export function NotificationSync() {
     return () => {
       alive = false;
     };
-  }, [ready, data.notifyClockout, data.schedule]);
+  }, [ready, data.notifyClockout, data.weeklyReport, data.schedule]);
 
   // Re-check when returning from system settings (permission may have changed).
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active' || !ready || !data.notifyClockout) return;
+      if (state !== 'active' || !ready || (!data.notifyClockout && !data.weeklyReport)) return;
       getNotificationStatus().then(({ status }) => {
         if (status === 'granted') {
           setPrimer(false);
-          syncClockoutNotifications(data.schedule, true).catch(() => {});
+          syncNotifications({
+            schedule: data.schedule,
+            clockout: data.notifyClockout,
+            weekly: data.weeklyReport,
+          }).catch(() => {});
         }
       });
     });
     return () => sub.remove();
-  }, [ready, data.notifyClockout, data.schedule]);
+  }, [ready, data.notifyClockout, data.weeklyReport, data.schedule]);
 
   const onEnable = () => {
     setPrimer(false);

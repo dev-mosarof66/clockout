@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import LandingPage from './components/LandingPage';
 import PhoneSimulator from './components/PhoneSimulator';
 import { SimulatorStats, AppLog } from './types';
-import { Clock, Smartphone, Layers } from 'lucide-react';
+import { Smartphone, Layers } from 'lucide-react';
+import Logo from './components/Logo';
 import { initAnalytics } from './lib/analytics';
 import { config, isConfigured } from './lib/config';
 
@@ -51,9 +52,7 @@ export default function App() {
       <header className="bg-[#0A0A0A]/80 backdrop-blur-md border-b border-neutral-800 sticky top-0 z-50 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#F97316] flex items-center justify-center shadow-lg shadow-[#F97316]/25">
-              <Clock className="w-5 h-5 text-black stroke-[2.5]" />
-            </div>
+            <Logo size={40} className="shrink-0" />
             <div>
               <span className="font-extrabold tracking-tight text-[#FAFAFA] text-lg font-display">Clockout</span>
               <span className="text-[9px] bg-neutral-900 text-neutral-400 font-bold ml-1.5 px-2 py-0.5 rounded border border-neutral-800 uppercase tracking-widest">
@@ -133,9 +132,7 @@ export default function App() {
       <footer className="bg-neutral-950 border-t border-neutral-800/80 text-neutral-500 py-10 px-4 text-xs mt-16">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center justify-center">
-              <Clock className="w-4 h-4 text-[#F97316]" />
-            </div>
+            <Logo size={28} className="shrink-0" />
             <span className="font-bold text-neutral-300 font-display">Clockout.</span>
           </div>
           <p className="text-neutral-500 text-center md:text-left">

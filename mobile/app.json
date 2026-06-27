@@ -17,6 +17,12 @@
       "expo-notifications",
       "./plugins/withArOptional",
       [
+        "expo-calendar",
+        {
+          "calendarPermission": "Clockout reads your calendar to skip the nudge during real meetings and obligations."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/splash.png",
@@ -40,7 +46,7 @@
       "package": "com.clockout.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#F97316"
+        "backgroundColor": "#0A0A0A"
       }
     },
     "extra": {

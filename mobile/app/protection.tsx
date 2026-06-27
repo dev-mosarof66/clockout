@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Pressable, AppState } from 'react-native';
+import { View, Text, ScrollView, Pressable, AppState, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,7 +11,14 @@ import {
   openNotificationSettings,
   notificationsGranted,
 } from '../lib/permissions';
-import { engineAvailable, hasUsageAccess, hasOverlayPermission } from '../lib/engine';
+import {
+  engineAvailable,
+  hasUsageAccess,
+  hasOverlayPermission,
+  hasBatteryExemption,
+  requestBatteryExemption,
+} from '../lib/engine';
+import { capture } from '../lib/analytics';
 import { colors } from '../theme/colors';
 
 function PermCard({
@@ -30,14 +37,14 @@ function PermCard({
   onEnable: () => void;
 }) {
   return (
-    <View className="gap-3 rounded-3xl border border-border bg-card p-5">
+    <View className="gap-3 rounded-2xl border border-border bg-card p-5">
       <View className="flex-row items-center gap-3">
         <View className="h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: tint + '22' }}>
           <Ionicons name={icon} size={19} color={tint} />
         </View>
         <View className="flex-1">
           <Text className="text-sm font-bold text-foreground">{title}</Text>
-          <Text className="text-[12px] leading-snug text-muted">{desc}</Text>
+          <Text className="text-xs leading-snug text-muted">{desc}</Text>
         </View>
         {granted && <Ionicons name="checkmark-circle" size={22} color={colors.success} />}
       </View>
@@ -56,12 +63,14 @@ export default function Protection() {
   const [notif, setNotif] = useState(false);
   const [usage, setUsage] = useState(false);
   const [overlay, setOverlay] = useState(false);
+  const [battery, setBattery] = useState(false);
 
   useEffect(() => {
     const refresh = () => {
       notificationsGranted().then(setNotif).catch(() => {});
       setUsage(hasUsageAccess());
       setOverlay(hasOverlayPermission());
+      setBattery(hasBatteryExemption());
     };
     refresh();
     const sub = AppState.addEventListener('change', (s) => s === 'active' && refresh());
@@ -69,6 +78,7 @@ export default function Protection() {
   }, []);
 
   const done = () => {
+    capture('protection_setup_done', { usage, overlay, notif, battery });
     update({ protectionSetupDone: true });
     router.back();
   };
@@ -118,11 +128,45 @@ export default function Protection() {
           granted={notif}
           onEnable={openNotificationSettings}
         />
+        <PermCard
+          icon="battery-charging-outline"
+          tint={colors.success}
+          title="Keep running in background"
+          desc="Recommended — so the guard isn’t killed overnight."
+          granted={battery}
+          onEnable={requestBatteryExemption}
+        />
+
+        {/* OEM autostart guidance — Samsung/Xiaomi/OPPO etc. */}
+        <View className="gap-3 rounded-2xl border border-border bg-card p-5">
+          <View className="flex-row items-center gap-3">
+            <View
+              className="h-10 w-10 items-center justify-center rounded-xl"
+              style={{ backgroundColor: colors.muted + '22' }}>
+              <Ionicons name="hardware-chip-outline" size={19} color={colors.muted} />
+            </View>
+            <View className="flex-1">
+              <Text className="text-sm font-bold text-foreground">Some phones need one more step</Text>
+              <Text className="text-xs leading-snug text-muted">
+                On Samsung, Xiaomi, OPPO &amp; others, also allow{' '}
+                <Text className="font-semibold text-foreground">Auto-start</Text> and set battery to{' '}
+                <Text className="font-semibold text-foreground">Unrestricted</Text> for Clockout —
+                otherwise the guard can stop after a while.
+              </Text>
+            </View>
+          </View>
+          <Button
+            label="Open app settings"
+            variant="secondary"
+            size="sm"
+            onPress={() => Linking.openSettings().catch(() => {})}
+          />
+        </View>
 
         {!engineAvailable && (
           <View className="flex-row items-start gap-2 px-1">
             <Ionicons name="shield-checkmark-outline" size={14} color={colors.muted} />
-            <Text className="flex-1 text-[11px] leading-relaxed text-muted">
+            <Text className="flex-1 text-xs leading-relaxed text-muted">
               Usage & overlay status will confirm automatically once the engine build is installed.
             </Text>
           </View>

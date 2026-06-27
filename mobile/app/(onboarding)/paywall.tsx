@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, TextInput, StyleSheet } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, Pressable, ScrollView, TextInput, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,10 +8,25 @@ import LottieView from 'lottie-react-native';
 import { Button } from '../../components/Button';
 import { useOnboarding } from '../../lib/onboarding';
 import { usePurchases } from '../../lib/purchases';
+import { capture } from '../../lib/analytics';
 import { colors } from '../../theme/colors';
 
 const FOUNDER_CODES = ['FOUNDER', 'EARLYBIRD', 'CLOCKOUT'];
 const FOUNDER_PRICE = '$4.99/month';
+
+// Format an annual price as its per-month equivalent in the product's own
+// currency (e.g. 39.99 USD → "$3.33 / mo"). Returns null if Intl is unavailable.
+function perMonthString(annualPrice: number, currencyCode: string): string | null {
+  try {
+    const formatted = new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: currencyCode,
+    }).format(annualPrice / 12);
+    return `${formatted} / mo`;
+  } catch {
+    return null;
+  }
+}
 
 const FEATURES: {
   icon: keyof typeof Ionicons.glyphMap;
@@ -77,22 +92,22 @@ function PlanCard({
         }`}>
         {ribbon && (
           <View className="absolute -top-2 right-3 rounded-full bg-primary px-2 py-0.5">
-            <Text className="text-[8px] font-black uppercase tracking-wider text-primary-foreground">
+            <Text className="text-xs font-black uppercase tracking-wider text-primary-foreground">
               {ribbon}
             </Text>
           </View>
         )}
         <View className="flex-row items-center justify-between">
-          <Text className="text-[10px] font-bold uppercase tracking-widest text-muted">{name}</Text>
+          <Text className="text-xs font-bold uppercase tracking-widest text-muted">{name}</Text>
           <View
             className={`h-5 w-5 items-center justify-center rounded-full border ${
               selected ? 'border-primary bg-primary' : 'border-border'
             }`}>
-            {selected && <Text className="text-[10px] font-black text-primary-foreground">✓</Text>}
+            {selected && <Text className="text-xs font-black text-primary-foreground">✓</Text>}
           </View>
         </View>
         <Text className="mt-2 text-2xl font-black text-foreground">{price}</Text>
-        <Text className="text-[11px] text-muted">{sub}</Text>
+        <Text className="text-xs text-muted">{sub}</Text>
       </Pressable>
     </View>
   );
@@ -101,18 +116,29 @@ function PlanCard({
 export default function Paywall() {
   const inset = useSafeAreaInsets();
   const { data, update } = useOnboarding();
-  const { available, purchasePlan, restore } = usePurchases();
+  const { available, offering, purchasePlan, restore } = usePurchases();
   const [plan, setPlan] = useState<Plan>(data.plan);
   const [promo, setPromo] = useState('');
   const [applied, setApplied] = useState(false);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // Show the REAL store prices from the active offering so the cards/footer match
+  // the actual checkout sheet. Hardcoded values are only a fallback for when the
+  // offering hasn't loaded (Expo Go, or before products are configured).
+  const monthlyPkg = offering?.monthly ?? null;
+  const annualPkg = offering?.annual ?? null;
+  const monthlyPrice = monthlyPkg?.product.priceString ?? '$4.99';
+  const yearlyPrice = annualPkg?.product.priceString ?? '$29.99';
+  const yearlyPerMonth =
+    (annualPkg ? perMonthString(annualPkg.product.price, annualPkg.product.currencyCode) : null) ??
+    '$2.50 / mo';
+
   const priceLine = applied
     ? `${FOUNDER_PRICE} (founder, locked for life)`
     : plan === 'yearly'
-      ? '$39.99/year'
-      : '$4.99/month';
+      ? `${yearlyPrice}/year`
+      : `${monthlyPrice}/month`;
 
   const apply = () => {
     if (FOUNDER_CODES.includes(promo.trim().toUpperCase())) {
@@ -123,7 +149,13 @@ export default function Paywall() {
     }
   };
 
+  useEffect(() => {
+    capture('paywall_viewed');
+  }, []);
+
   const finish = (pro: boolean) => {
+    capture('onboarding_completed', { plan, pro, founder: applied });
+    capture(pro ? 'trial_started' : 'continued_free');
     update({ plan, founder: applied, pro, onboarded: true });
     router.replace('/processing');
   };
@@ -131,19 +163,28 @@ export default function Paywall() {
   // Start trial: real RevenueCat purchase when available, else fall back to the
   // local flow (so it still works in Expo Go / before Play products exist).
   const startTrial = async () => {
+    capture('checkout_started', { plan });
     if (!available) return finish(true);
     setBusy(true);
-    const ok = await purchasePlan(plan);
+    const res = await purchasePlan(plan);
     setBusy(false);
-    if (ok) finish(true); // cancelled/failed → stay on the paywall
+    if (res.ok) finish(true);
+    else if (!res.cancelled) {
+      // Don't fail silently — a completed-but-not-entitled purchase or config
+      // gap should tell the user (and us) something went wrong.
+      Alert.alert('Couldn’t start your trial', res.reason ?? 'Something went wrong. Please try again.');
+    }
   };
 
   const onRestore = async () => {
     if (!available) return;
     setBusy(true);
-    const ok = await restore();
+    const res = await restore();
     setBusy(false);
-    if (ok) finish(true);
+    if (res.ok) finish(true);
+    else if (!res.cancelled) {
+      Alert.alert('Nothing to restore', res.reason ?? 'No active subscription was found.');
+    }
   };
 
   return (
@@ -154,7 +195,7 @@ export default function Paywall() {
           <View className="h-1.5 w-6 rounded-full bg-primary" />
           <View className="h-1.5 w-6 rounded-full bg-primary" />
           <View className="h-1.5 w-6 rounded-full bg-primary" />
-          <Text className="ml-1 text-[11px] font-bold uppercase tracking-widest text-muted">
+          <Text className="ml-1 text-xs font-bold uppercase tracking-widest text-muted">
             Step 3 of 3
           </Text>
         </View>
@@ -178,7 +219,7 @@ export default function Paywall() {
               />
             </View>
             <View className="mt-1 rounded-full border border-primary/40 bg-primary/10 px-3 py-1">
-              <Text className="text-[10px] font-black uppercase tracking-widest text-primary">
+              <Text className="text-sm font-black uppercase tracking-widest text-primary">
                 Clockout Pro
               </Text>
             </View>
@@ -201,7 +242,7 @@ export default function Paywall() {
                 </View>
                 <View className="flex-1">
                   <Text className="text-sm font-bold text-foreground">{f.title}</Text>
-                  <Text className="text-[12px] leading-snug text-muted">{f.desc}</Text>
+                  <Text className="text-xs leading-snug text-muted">{f.desc}</Text>
                 </View>
               </View>
             ))}
@@ -213,16 +254,16 @@ export default function Paywall() {
               selected={plan === 'monthly'}
               onPress={() => setPlan('monthly')}
               name="Monthly"
-              price="$4.99"
+              price={monthlyPrice}
               sub="per month"
             />
             <PlanCard
               selected={plan === 'yearly'}
               onPress={() => setPlan('yearly')}
               name="Yearly"
-              price="$39.99"
-              sub="$3.33 / mo"
-              ribbon="Save 33%"
+              price={yearlyPrice}
+              sub={yearlyPerMonth}
+              ribbon="Save 50%"
             />
           </View>
 
@@ -241,7 +282,7 @@ export default function Paywall() {
                     <Text className="text-sm font-bold text-foreground">
                       Founder price unlocked
                     </Text>
-                    <Text className="text-[12px] text-muted">$4.99/mo, locked in for life.</Text>
+                    <Text className="text-xs text-muted">$4.99/mo, locked in for life.</Text>
                   </View>
                   <Pressable
                     hitSlop={8}
@@ -249,7 +290,7 @@ export default function Paywall() {
                       setApplied(false);
                       setPromo('');
                     }}>
-                    <Text className="text-[11px] font-semibold text-muted">Remove</Text>
+                    <Text className="text-xs font-semibold text-muted">Remove</Text>
                   </Pressable>
                 </View>
               ) : (
@@ -257,8 +298,8 @@ export default function Paywall() {
                   <Text className="text-xs font-bold uppercase tracking-widest text-primary">
                     Early bird?
                   </Text>
-                  <Text className="mt-0.5 text-[12px] text-muted">
-                    Got a founder code? Lock in $4.99/mo for life.
+                  <Text className="mt-0.5 text-xs text-muted">
+                    Got a founder code? Lock in $2.99/mo for life.
                   </Text>
                   <View className="mt-3 flex-row items-center gap-2">
                     <TextInput
@@ -284,7 +325,7 @@ export default function Paywall() {
                     />
                   </View>
                   {error && (
-                    <Text className="mt-2 text-[11px] text-destructive">
+                    <Text className="mt-2 text-xs text-destructive">
                       That code isn’t valid.
                     </Text>
                   )}
@@ -307,7 +348,7 @@ export default function Paywall() {
           </View>
           {available && (
             <Pressable onPress={onRestore} hitSlop={8} className="items-center py-1 active:opacity-70">
-              <Text className="text-[12px] font-semibold text-muted">Restore purchases</Text>
+              <Text className="text-xs font-semibold text-muted">Restore purchases</Text>
             </Pressable>
           )}
           <Button label="Back" variant="ghost" onPress={() => router.back()} />

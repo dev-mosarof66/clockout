@@ -40,7 +40,7 @@ function HowRow({
       </View>
       <View className="flex-1">
         <Text className="text-sm font-bold text-foreground">{title}</Text>
-        <Text className="text-[12px] leading-snug text-muted">{desc}</Text>
+        <Text className="text-xs leading-snug text-muted">{desc}</Text>
       </View>
     </View>
   );
@@ -125,7 +125,7 @@ export default function NudgeTab() {
           onPress={launch}
           className="overflow-hidden rounded-2xl border border-border active:opacity-90">
           <View className="items-center gap-3 bg-background px-6 py-7">
-            <Text className="text-[10px] font-black uppercase tracking-[3px] text-primary">
+            <Text className="text-xs font-black uppercase tracking-[3px] text-primary">
               Boundary enforced
             </Text>
             <Text className="text-center text-xl font-extrabold text-foreground">
@@ -151,14 +151,14 @@ export default function NudgeTab() {
                 </Text>
               </View>
               <View className="items-center py-1">
-                <Text className="text-[11px] font-bold text-muted">Open anyway</Text>
+                <Text className="text-xs font-bold text-muted">Open anyway</Text>
               </View>
             </View>
           </View>
 
           <View className="flex-row items-center justify-center gap-1.5 border-t border-border bg-card py-2.5">
             <Ionicons name="play-circle" size={14} color={colors.primary} />
-            <Text className="text-[11px] font-bold text-primary">Tap to preview the full nudge</Text>
+            <Text className="text-xs font-bold text-primary">Tap to preview the full nudge</Text>
           </View>
         </Pressable>
 

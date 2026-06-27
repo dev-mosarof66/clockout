@@ -34,7 +34,11 @@ class ClockoutService : Service() {
   private var lastForeground: String? = null
   private var lastNudgeAt = 0L
   private var lastNudgePkg: String? = null
-  private val overlay = ClockoutOverlay(this)
+  // Created lazily: a Service's base Context isn't attached during construction
+  // (the system calls newInstance() then attaches context before onCreate), so
+  // touching getSystemService in a field initializer NPEs. First access happens
+  // in tick()/onDestroy, by which point the context exists.
+  private val overlay by lazy { ClockoutOverlay(this) }
 
   private val poll = object : Runnable {
     override fun run() {
@@ -80,7 +84,10 @@ class ClockoutService : Service() {
 
     val packages = config.optJSONArray("packages") ?: return
     if (!packages.contains(pkg)) return
-    if (isWorkHours(config)) return // only after hours
+    // Guard when off the clock OR inside an extra boundary (lunch / deep-work).
+    if (isWorkHours(config) && !inExtraWindow(config)) return
+    // …unless a real calendar obligation is happening right now — let them work.
+    if (inBusyWindow(config)) return
 
     val now = System.currentTimeMillis()
     if (pkg == lastNudgePkg && now - lastNudgeAt < REARM_MS) return
@@ -120,6 +127,33 @@ class ClockoutService : Service() {
     var isWorkday = false
     for (i in 0 until days.length()) if (days.optInt(i) == day) isWorkday = true
     return isWorkday && mins >= start && mins < end
+  }
+
+  // Inside any Pro "extra boundary" (lunch / deep-work) right now?
+  private fun inExtraWindow(config: JSONObject): Boolean {
+    val extra = config.optJSONArray("extra") ?: return false
+    val cal = Calendar.getInstance()
+    val day = cal.get(Calendar.DAY_OF_WEEK) - 1
+    val mins = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
+    for (i in 0 until extra.length()) {
+      val w = extra.optJSONObject(i) ?: continue
+      val days = w.optJSONArray("days") ?: continue
+      var isDay = false
+      for (j in 0 until days.length()) if (days.optInt(j) == day) isDay = true
+      if (isDay && mins >= w.optInt("start") && mins < w.optInt("end")) return true
+    }
+    return false
+  }
+
+  // Inside a calendar event right now? (absolute-ms windows pushed from JS)
+  private fun inBusyWindow(config: JSONObject): Boolean {
+    val busy = config.optJSONArray("busy") ?: return false
+    val now = System.currentTimeMillis()
+    for (i in 0 until busy.length()) {
+      val w = busy.optJSONObject(i) ?: continue
+      if (now >= w.optLong("start") && now < w.optLong("end")) return true
+    }
+    return false
   }
 
   private fun readConfig(): JSONObject? {

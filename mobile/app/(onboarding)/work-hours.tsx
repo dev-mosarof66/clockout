@@ -5,6 +5,9 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Button } from '../../components/Button';
 import { useOnboarding } from '../../lib/onboarding';
+import { WORK_APPS } from '../../data/workApps';
+import { engineAvailable, hasUsageAccess, usagePattern } from '../../lib/engine';
+import { capture } from '../../lib/analytics';
 import { colors } from '../../theme/colors';
 
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -38,7 +41,7 @@ function TimeCard({
         style={{ backgroundColor: tint + '22' }}>
         <Ionicons name={icon} size={20} color={tint} />
       </View>
-      <Text className="text-[10px] font-bold uppercase tracking-widest text-muted">{label}</Text>
+      <Text className="text-xs font-bold uppercase tracking-widest text-muted">{label}</Text>
       <Text className="text-xl font-black text-foreground">{fmt(value)}</Text>
       <View className="mt-1 flex-row items-center gap-3">
         <Pressable
@@ -62,7 +65,7 @@ function Legend({ color, label }: { color: string; label: string }) {
   return (
     <View className="flex-row items-center gap-1.5">
       <View className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-      <Text className="text-[10px] font-semibold text-muted">{label}</Text>
+      <Text className="text-xs font-semibold text-muted">{label}</Text>
     </View>
   );
 }
@@ -73,9 +76,30 @@ export default function WorkHours() {
   const [start, setStart] = useState(data.schedule?.start ?? 9 * 60); // 9:00 AM
   const [end, setEnd] = useState(data.schedule?.end ?? 18 * 60); // 6:00 PM
   const [days, setDays] = useState<number[]>(data.schedule?.days ?? [1, 2, 3, 4, 5]); // Mon–Fri
+  const [learnMsg, setLearnMsg] = useState<string | null>(null);
 
   const toggleDay = (i: number) =>
     setDays((d) => (d.includes(i) ? d.filter((x) => x !== i) : [...d, i].sort()));
+
+  // Auto-learn: infer the schedule from how the user's work apps are actually used.
+  const autofill = () => {
+    if (!hasUsageAccess()) {
+      setLearnMsg('Grant Usage access in setup first, then try again.');
+      return;
+    }
+    const pkgs = WORK_APPS.filter((a) => data.workApps.includes(a.id) && a.pkg).map(
+      (a) => a.pkg as string,
+    );
+    const p = usagePattern(pkgs, 14);
+    if (!p || p.samples < 2) {
+      setLearnMsg('Not enough usage history yet — set it manually below.');
+      return;
+    }
+    setStart(p.start);
+    setEnd(p.end);
+    if (p.days.length) setDays(p.days);
+    setLearnMsg(`Suggested from ${p.samples} days of your usage — tweak if it's off.`);
+  };
 
   const startPct = (start / 1440) * 100;
   const workPct = Math.max(0, end - start) / 1440 * 100;
@@ -89,7 +113,7 @@ export default function WorkHours() {
             <View className="h-1.5 w-6 rounded-full bg-primary" />
             <View className="h-1.5 w-6 rounded-full bg-primary" />
             <View className="h-1.5 w-6 rounded-full bg-border" />
-            <Text className="ml-1 text-[11px] font-bold uppercase tracking-widest text-muted">
+            <Text className="ml-1 text-xs font-bold uppercase tracking-widest text-muted">
               Step 2 of 3
             </Text>
           </View>
@@ -98,6 +122,19 @@ export default function WorkHours() {
             Clockout guards your time outside these hours. You can fine-tune this later.
           </Text>
         </View>
+
+        {/* Auto-learn from usage */}
+        {engineAvailable && (
+          <View className="mb-3 gap-1.5">
+            <Pressable
+              onPress={autofill}
+              className="flex-row items-center gap-2 self-start rounded-full border border-primary/30 bg-primary/10 px-3.5 py-2 active:opacity-80">
+              <Ionicons name="sparkles" size={14} color={colors.primary} />
+              <Text className="text-xs font-bold text-primary">Suggest from my usage</Text>
+            </Pressable>
+            {learnMsg && <Text className="text-xs text-muted">{learnMsg}</Text>}
+          </View>
+        )}
 
         {/* Time cards */}
         <View className="flex-row gap-3">
@@ -108,7 +145,7 @@ export default function WorkHours() {
         {/* 24h boundary timeline */}
         <View className="mt-3 gap-3 rounded-3xl border border-border bg-card p-4">
           <View className="flex-row items-center justify-between">
-            <Text className="text-[10px] font-bold uppercase tracking-widest text-muted">
+            <Text className="text-xs font-bold uppercase tracking-widest text-muted">
               Your day
             </Text>
             <View className="flex-row gap-3">
@@ -135,13 +172,13 @@ export default function WorkHours() {
 
           <View className="flex-row justify-between">
             {['12a', '6a', '12p', '6p', '12a'].map((t, i) => (
-              <Text key={i} className="text-[9px] text-subtle">
+              <Text key={i} className="text-xs text-subtle">
                 {t}
               </Text>
             ))}
           </View>
 
-          <Text className="text-[11px] leading-relaxed text-muted">
+          <Text className="text-xs leading-relaxed text-muted">
             Guarded{' '}
             <Text className="font-bold text-foreground">
               {fmt(end)} → {fmt(start)}
@@ -181,6 +218,7 @@ export default function WorkHours() {
             label="Continue"
             disabled={days.length === 0}
             onPress={() => {
+              capture('schedule_set', { days: days.length });
               update({ schedule: { start, end, days } });
               router.push('/paywall');
             }}

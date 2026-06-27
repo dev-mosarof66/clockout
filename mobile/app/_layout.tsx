@@ -1,19 +1,21 @@
 import '../global.css';
-import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { useCallback, useEffect } from 'react';
+import { Stack, router, type Href } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { colors } from '../theme/colors';
-import { OnboardingProvider, useOnboarding } from '../lib/onboarding';
+import { OnboardingProvider } from '../lib/onboarding';
 import { StatsProvider } from '../lib/stats';
 import { PurchasesProvider } from '../lib/purchases';
 import { ProSync } from '../components/ProSync';
-import { configureNotifications } from '../lib/notifications';
+import { configureNotifications, addNotificationResponseListener } from '../lib/notifications';
+import { configureAnalytics } from '../lib/analytics';
 import { NotificationSync } from '../components/NotificationSync';
 import { EngineSync } from '../components/EngineSync';
+import { AnalyticsSync } from '../components/AnalyticsSync';
 
 // Show expo-router's error screen instead of hanging if a screen throws.
 export { ErrorBoundary } from 'expo-router';
@@ -28,16 +30,9 @@ if (!isExpoGo) {
 }
 
 function RootNavigator() {
-  const { ready } = useOnboarding();
-
-  // Keep the splash up until persisted onboarding state has loaded, so the entry
-  // route can decide (onboarding vs home) without a flash.
-  useEffect(() => {
-    if (ready) SplashScreen.hideAsync().catch(() => {});
-  }, [ready]);
-
-  if (!ready) return null;
-
+  // The native splash hands off to the custom JS splash in app/index.tsx, which
+  // holds until persisted onboarding state loads, then redirects (onboarding vs
+  // home). So we render the navigator immediately rather than gating on `ready`.
   return (
     <Stack
       screenOptions={{
@@ -52,6 +47,9 @@ function RootNavigator() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="protection" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="notifications" options={{ headerShown: false }} />
+      <Stack.Screen name="weekly-report" options={{ headerShown: false }} />
+      <Stack.Screen name="winddown" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="privacy" options={{ headerShown: false }} />
     </Stack>
   );
 }
@@ -59,10 +57,20 @@ function RootNavigator() {
 export default function RootLayout() {
   useEffect(() => {
     configureNotifications().catch(() => {});
+    configureAnalytics().catch(() => {});
+    // Route when a notification with a `data.url` is tapped (e.g. weekly report).
+    const unsub = addNotificationResponseListener((url) => router.push(url as Href));
+    return unsub;
+  }, []);
+
+  // Hand off the native splash to the JS splash (app/index.tsx) once the root
+  // view has painted its first frame, so there's no white flash between them.
+  const onLayoutRoot = useCallback(() => {
+    SplashScreen.hideAsync().catch(() => {});
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRoot}>
       <SafeAreaProvider>
         <OnboardingProvider>
           <StatsProvider>
@@ -71,6 +79,7 @@ export default function RootLayout() {
               <NotificationSync />
               <EngineSync />
               <ProSync />
+              <AnalyticsSync />
               <RootNavigator />
             </PurchasesProvider>
           </StatsProvider>

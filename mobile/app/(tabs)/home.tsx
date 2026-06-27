@@ -100,7 +100,7 @@ function StatCard({
   return (
     <View className="h-24 flex-1 flex-row items-center justify-between gap-1.5 rounded-2xl border border-border bg-card p-3">
       <View className="flex h-full justify-between">
-        <Text className="text-[10px] font-bold uppercase tracking-wider text-muted">{label}</Text>
+        <Text className="text-xs font-bold uppercase tracking-wider text-muted">{label}</Text>
         <Text className="text-2xl font-black" style={{ color: tint }}>
           {value}
         </Text>
@@ -239,7 +239,7 @@ export default function Home() {
             <Ionicons name="warning-outline" size={18} color={colors.warning} />
             <View className="flex-1">
               <Text className="text-sm font-bold text-foreground">Finish setting up protection</Text>
-              <Text className="text-[11px] text-muted">
+              <Text className="text-xs text-muted">
                 Grant a few permissions so Clockout can guard your evenings.
               </Text>
             </View>
@@ -262,7 +262,7 @@ export default function Home() {
               className="self-start rounded-full px-2.5 py-1"
               style={{ backgroundColor: accent + '1A' }}>
               <Text
-                className="text-[9px] font-black uppercase tracking-widest"
+                className="text-xs font-black uppercase tracking-widest"
                 style={{ color: accent }}>
                 {working ? 'Work mode' : 'Boundary on'}
               </Text>
@@ -270,7 +270,7 @@ export default function Home() {
             <Text className="text-2xl font-black text-foreground">
               {working && sched ? fmtDur(sched.end - mins) : 'Clocked out'}
             </Text>
-            <Text className="text-[11px] font-bold uppercase tracking-wider text-muted">
+            <Text className="text-xs font-bold uppercase tracking-wider text-muted">
               {working ? 'until clock-out' : 'guarded'}
             </Text>
             <Text className="text-xs leading-snug text-muted">
@@ -305,7 +305,7 @@ export default function Home() {
           <View className="flex-row items-start justify-between">
             <View>
               <SectionTitle>Evenings reclaimed</SectionTitle>
-              <Text className="mt-0.5 text-[11px] text-subtle">Last 7 days</Text>
+              <Text className="mt-0.5 text-xs text-subtle">Last 7 days</Text>
             </View>
             <Text className="text-2xl font-black text-primary">{summary.reclaimedThisWeek}</Text>
           </View>
@@ -317,7 +317,7 @@ export default function Home() {
           />
           <View className="flex-row justify-between">
             {summary.last7.map((d, i) => (
-              <Text key={i} className="flex-1 text-center text-[10px] font-semibold text-subtle">
+              <Text key={i} className="flex-1 text-center text-xs font-semibold text-subtle">
                 {d.label}
               </Text>
             ))}
@@ -386,7 +386,7 @@ export default function Home() {
                       <Text className="text-sm font-semibold text-foreground">
                         {reclaimed ? 'Reclaimed' : 'Opened'} {e.app}
                       </Text>
-                      <Text className="text-[11px] text-muted">{timeAgo(e.ts)}</Text>
+                      <Text className="text-xs text-muted">{timeAgo(e.ts)}</Text>
                     </View>
                   </View>
                 );
