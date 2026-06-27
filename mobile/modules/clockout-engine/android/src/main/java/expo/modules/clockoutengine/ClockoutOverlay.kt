@@ -165,7 +165,7 @@ class ClockoutOverlay(private val ctx: Context) {
         val i = full.indexOf(appLabel)
         if (i >= 0) {
           setSpan(StyleSpan(Typeface.BOLD), i, i + appLabel.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-          setSpan(ForegroundColorSpan(foreground), i, i + appLabel.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+          setSpan(ForegroundColorSpan(fgColor), i, i + appLabel.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
       }
       setTextColor(muted)
