@@ -83,12 +83,15 @@ export default function WorkApps() {
   const suggestions = suggested
     .map((s) => {
       const known = knownByPkg[s.pkg];
+      // Known apps use our brand glyph (consistent with the list below); unknown
+      // apps use the real installed-app launcher icon from the engine.
       return known
-        ? { id: known.id, name: known.name, color: known.color }
+        ? { id: known.id, name: known.name, color: known.color, icon: undefined as string | undefined }
         : {
             id: `custom-${s.label.toLowerCase().replace(/\s+/g, '-')}`,
             name: s.label,
             color: '#525252',
+            icon: s.icon,
           };
     })
     .filter((x) => !selected[x.id])
@@ -142,7 +145,7 @@ export default function WorkApps() {
                     key={x.id}
                     onPress={() => addSuggestion(x)}
                     className="flex-row items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1.5 active:opacity-80">
-                    <AppIcon id={x.id} name={x.name} color={x.color} size={18} />
+                    <AppIcon id={x.id} name={x.name} color={x.color} icon={x.icon} size={18} />
                     <Text className="text-xs font-bold text-foreground">{x.name}</Text>
                     <Ionicons name="add" size={13} color={colors.primary} />
                   </Pressable>

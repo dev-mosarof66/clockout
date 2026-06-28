@@ -1,9 +1,10 @@
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, router } from 'expo-router';
+import { Stack, router, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useStats, computeWeeklyReport } from '../lib/stats';
+import { useOnboarding } from '../lib/onboarding';
 import { colors } from '../theme/colors';
 
 function StatCard({
@@ -29,7 +30,12 @@ function StatCard({
 }
 
 export default function WeeklyReport() {
+  const { data, ready } = useOnboarding();
   const { events } = useStats();
+
+  // Pro-only: send free users (incl. any deep-link) to the paywall.
+  if (ready && !data.pro) return <Redirect href="/paywall" />;
+
   const r = computeWeeklyReport(events);
   const max = Math.max(1, ...r.byDay.map((d) => d.count));
 

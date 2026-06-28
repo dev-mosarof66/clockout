@@ -56,7 +56,7 @@ export default function Notifications() {
       <Stack.Screen options={{ headerShown: false }} />
 
       {/* Header */}
-      <View className="flex-row items-center gap-3 px-6 pb-2 pt-1">
+      <View className="flex-row items-center gap-3 px-6 py-4 pt-1">
         <Pressable onPress={() => router.back()} hitSlop={10} className="active:opacity-70">
           <Ionicons name="chevron-back" size={24} color={colors.foreground} />
         </Pressable>

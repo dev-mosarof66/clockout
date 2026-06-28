@@ -15,7 +15,12 @@ type Native = {
   writeWidgetData(json: string): void;
 };
 
-export type SuggestedApp = { pkg: string; label: string; minutes: number };
+export type SuggestedApp = {
+  pkg: string;
+  label: string;
+  minutes: number;
+  icon?: string; // real installed-app launcher icon as a PNG data URI
+};
 export type UsagePattern = {
   start: number; // minutes from midnight
   end: number;

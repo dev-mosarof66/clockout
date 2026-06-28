@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { Linking } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import type {
   CustomerInfo,
@@ -33,13 +34,40 @@ export type PurchaseResult =
   | { ok: true }
   | { ok: false; cancelled: boolean; reason?: string };
 
+// Trial vs paid + when it lapses — derived from the `pro` entitlement so the UI
+// can show a countdown and whether it'll renew.
+export type ProStatus = {
+  isPro: boolean;
+  periodType: 'trial' | 'intro' | 'normal' | null;
+  expiresAt: string | null; // ISO date the current period ends
+  willRenew: boolean;
+};
+
+const NO_PRO: ProStatus = { isPro: false, periodType: null, expiresAt: null, willRenew: false };
+
+function readPro(info: CustomerInfo): ProStatus {
+  const ent = info.entitlements.active[ENTITLEMENT];
+  if (!ent) return NO_PRO;
+  const pt = String(ent.periodType).toUpperCase();
+  return {
+    isPro: true,
+    periodType: pt === 'TRIAL' ? 'trial' : pt === 'INTRO' ? 'intro' : 'normal',
+    expiresAt: ent.expirationDate ?? null,
+    willRenew: ent.willRenew,
+  };
+}
+
+const PLAY_SUBS_URL = 'https://play.google.com/store/account/subscriptions';
+
 type Ctx = {
   available: boolean; // native module present AND key configured
   ready: boolean;
   isPro: boolean;
+  pro: ProStatus; // trial/paid details for the active `pro` entitlement
   offering: PurchasesOffering | null;
   purchasePlan: (plan: 'monthly' | 'yearly') => Promise<PurchaseResult>;
   restore: () => Promise<PurchaseResult>;
+  manageSubscriptions: () => Promise<void>; // open the store's manage-subscription UI
 };
 
 const PurchasesContext = createContext<Ctx | null>(null);
@@ -49,7 +77,7 @@ export function PurchasesProvider({ children }: { children: ReactNode }) {
   const available = !!Purchases && !!RC_KEY;
 
   const [ready, setReady] = useState(false);
-  const [isPro, setIsPro] = useState(false);
+  const [pro, setPro] = useState<ProStatus>(NO_PRO);
   const [offering, setOffering] = useState<PurchasesOffering | null>(null);
 
   useEffect(() => {
@@ -61,11 +89,11 @@ export function PurchasesProvider({ children }: { children: ReactNode }) {
       try {
         Purchases.configure({ apiKey: RC_KEY });
         const info = await Purchases.getCustomerInfo();
-        setIsPro(!!info.entitlements.active[ENTITLEMENT]);
+        setPro(readPro(info));
         const offerings = await Purchases.getOfferings();
         setOffering(offerings.current ?? null);
         Purchases.addCustomerInfoUpdateListener((ci: CustomerInfo) => {
-          setIsPro(!!ci.entitlements.active[ENTITLEMENT]);
+          setPro(readPro(ci));
         });
       } catch {
         // leave defaults
@@ -91,7 +119,7 @@ export function PurchasesProvider({ children }: { children: ReactNode }) {
       const { customerInfo } = await Purchases.purchasePackage(pkg);
       const active = customerInfo.entitlements.active;
       const ok = !!active[ENTITLEMENT];
-      setIsPro(ok);
+      setPro(readPro(customerInfo));
       if (!ok && __DEV__) {
         console.warn(
           `[purchases] Purchase completed but "${ENTITLEMENT}" entitlement is NOT active. ` +
@@ -121,7 +149,7 @@ export function PurchasesProvider({ children }: { children: ReactNode }) {
     try {
       const info = await Purchases.restorePurchases();
       const ok = !!info.entitlements.active[ENTITLEMENT];
-      setIsPro(ok);
+      setPro(readPro(info));
       return ok
         ? { ok: true }
         : { ok: false, cancelled: false, reason: 'No active subscription found to restore.' };
@@ -131,8 +159,28 @@ export function PurchasesProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Open the store's manage-subscription screen (cancel / change plan). Prefers
+  // RevenueCat's helper; falls back to the customer's managementURL or Play.
+  const manageSubscriptions = async (): Promise<void> => {
+    try {
+      if (Purchases?.showManageSubscriptions) {
+        await Purchases.showManageSubscriptions();
+        return;
+      }
+    } catch {
+      // fall through to opening a URL
+    }
+    try {
+      const info = await Purchases?.getCustomerInfo();
+      await Linking.openURL(info?.managementURL ?? PLAY_SUBS_URL);
+    } catch {
+      Linking.openURL(PLAY_SUBS_URL).catch(() => {});
+    }
+  };
+
   return (
-    <PurchasesContext.Provider value={{ available, ready, isPro, offering, purchasePlan, restore }}>
+    <PurchasesContext.Provider
+      value={{ available, ready, isPro: pro.isPro, pro, offering, purchasePlan, restore, manageSubscriptions }}>
       {children}
     </PurchasesContext.Provider>
   );

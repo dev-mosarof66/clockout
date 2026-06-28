@@ -9,8 +9,11 @@ import { Button } from '../../components/Button';
 import { ScheduleModal } from '../../components/ScheduleModal';
 import { AppsModal } from '../../components/AppsModal';
 import { BoundaryModal } from '../../components/BoundaryModal';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useOnboarding } from '../../lib/onboarding';
+import { usePurchases } from '../../lib/purchases';
 import { useStats } from '../../lib/stats';
+import { drainEvents } from '../../lib/engine';
 import { requestCalendarPermission } from '../../lib/calendar';
 import { capture } from '../../lib/analytics';
 import { colors } from '../../theme/colors';
@@ -40,6 +43,7 @@ function Row({
   tint = colors.muted,
   label,
   value,
+  badge,
   onPress,
   last = false,
 }: {
@@ -47,6 +51,7 @@ function Row({
   tint?: string;
   label: string;
   value?: string;
+  badge?: string;
   onPress?: () => void;
   last?: boolean;
 }) {
@@ -59,6 +64,9 @@ function Row({
         <Ionicons name={icon} size={17} color={tint} />
       </View>
       <Text className="flex-1 text-sm font-semibold text-foreground">{label}</Text>
+      {badge && (
+        <Text className="text-xs font-black uppercase tracking-wider text-primary">{badge}</Text>
+      )}
       {value && <Text className="text-sm text-muted">{value}</Text>}
       {onPress && <Ionicons name="chevron-forward" size={16} color={colors.subtle} />}
     </Pressable>
@@ -112,13 +120,39 @@ function ToggleRow({
 }
 
 export default function Settings() {
-  const { data, update, reset } = useOnboarding();
+  const { data, update } = useOnboarding();
+  const { available, pro, manageSubscriptions } = usePurchases();
   const { clear: clearStats } = useStats();
   const s = data.schedule;
+
+  // Trial countdown from the RevenueCat `pro` entitlement (null when not on trial).
+  const trialDaysLeft =
+    pro.periodType === 'trial' && pro.expiresAt
+      ? Math.max(0, Math.ceil((new Date(pro.expiresAt).getTime() - Date.now()) / 86_400_000))
+      : null;
+
+  const planSubtitle = !data.pro
+    ? 'Free plan'
+    : pro.periodType === 'trial'
+      ? 'Pro · free trial'
+      : data.founder
+        ? 'Founder · $4.99/mo for life'
+        : pro.periodType === 'normal' && !pro.willRenew
+          ? 'Pro · cancels at period end'
+          : 'Pro active';
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
   const [boundaryOpen, setBoundaryOpen] = useState(false);
   const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [cacheConfirm, setCacheConfirm] = useState(false);
+
+  // Clears transient data (reclaim history / dashboard stats + any pending engine
+  // events) while keeping the user's setup — apps, schedule, plan, and settings.
+  const confirmClearCache = () => {
+    drainEvents(); // discard any pending engine events so stats don't repopulate
+    clearStats();
+    setCacheConfirm(false);
+  };
 
   const toggleStrict = () => {
     if (!data.pro) return;
@@ -181,15 +215,9 @@ export default function Settings() {
               <Text className="text-base font-extrabold text-foreground">
                 Clockout {data.pro ? 'Pro' : 'Free'}
               </Text>
-              <Text className="text-xs text-muted">
-                {data.pro
-                  ? data.founder
-                    ? 'Founder · $4.99/mo for life'
-                    : 'Pro trial active'
-                  : 'Free plan'}
-              </Text>
+              <Text className="text-xs text-muted">{planSubtitle}</Text>
             </View>
-            {!data.pro && (
+            {!data.pro ? (
               <Button
                 label="Upgrade"
                 size="sm"
@@ -199,8 +227,33 @@ export default function Settings() {
                   router.push('/paywall');
                 }}
               />
-            )}
+            ) : pro.isPro && available ? (
+              <Button
+                label="Manage"
+                size="sm"
+                variant="secondary"
+                fullWidth={false}
+                onPress={manageSubscriptions}
+              />
+            ) : null}
           </View>
+
+          {/* Trial countdown */}
+          {trialDaysLeft !== null && (
+            <View className="mt-3 flex-row items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3 py-2">
+              <Ionicons name="hourglass-outline" size={14} color={colors.primary} />
+              <Text className="flex-1 text-xs font-semibold text-foreground">
+                {trialDaysLeft === 0
+                  ? 'Trial ends today'
+                  : `Trial ends in ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'}`}
+              </Text>
+              {pro.expiresAt && (
+                <Text className="text-xs text-muted">
+                  {new Date(pro.expiresAt).toLocaleDateString()}
+                </Text>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Account */}
@@ -354,19 +407,21 @@ export default function Settings() {
           />
         </Section>
 
-        {/* Routines */}
+        {/* Routines (Pro) */}
         <Section title="Routines">
           <Row
             icon="bar-chart-outline"
             tint={colors.primary}
             label="Weekly report"
-            onPress={() => router.push('/weekly-report')}
+            badge={!data.pro ? 'Pro' : undefined}
+            onPress={() => router.push(data.pro ? '/weekly-report' : '/paywall')}
           />
           <Row
             icon="moon-outline"
             tint={colors.warning}
             label="Wind-down routine"
-            onPress={() => router.push('/winddown')}
+            badge={!data.pro ? 'Pro' : undefined}
+            onPress={() => router.push(data.pro ? '/winddown' : '/paywall')}
             last
           />
         </Section>
@@ -385,8 +440,10 @@ export default function Settings() {
             tint={colors.success}
             label="Weekly report"
             desc="Sunday recap of evenings reclaimed."
-            value={data.weeklyReport}
+            badge={!data.pro ? 'Pro' : undefined}
+            value={data.weeklyReport && data.pro}
             onValueChange={() => update({ weeklyReport: !data.weeklyReport })}
+            disabled={!data.pro}
             last
           />
         </Section>
@@ -416,19 +473,16 @@ export default function Settings() {
           <Row icon="information-circle-outline" label="Version" value="1.0.0" last />
         </Section>
 
-        {/* Danger zone */}
-        <Pressable
-          onPress={() => {
-            reset();
-            clearStats();
-            router.replace('/welcome');
-          }}
-          className="flex-row items-center justify-center gap-2 rounded-2xl border border-destructive/30 py-3.5 active:opacity-70">
-          <Ionicons name="trash-outline" size={16} color={colors.destructive} />
-          <Text className="text-sm font-bold" style={{ color: colors.destructive }}>
-            Reset onboarding (dev)
-          </Text>
-        </Pressable>
+        {/* Data */}
+        <Section title="Data">
+          <Row
+            icon="trash-outline"
+            tint={colors.destructive}
+            label="Clear cache"
+            onPress={() => setCacheConfirm(true)}
+            last
+          />
+        </Section>
 
         <Text className="text-center text-xs text-subtle">Clockout · on-device · private</Text>
       </ScrollView>
@@ -439,6 +493,16 @@ export default function Settings() {
         visible={boundaryOpen}
         editIndex={editIndex}
         onClose={() => setBoundaryOpen(false)}
+      />
+      <ConfirmDialog
+        visible={cacheConfirm}
+        icon="trash-outline"
+        destructive
+        title="Clear cache?"
+        message="This clears your reclaim history and dashboard stats. Your apps, schedule, and settings stay."
+        confirmLabel="Clear"
+        onConfirm={confirmClearCache}
+        onCancel={() => setCacheConfirm(false)}
       />
     </SafeAreaView>
   );

@@ -15,11 +15,14 @@ export function NotificationSync() {
   const { data, update, ready } = useOnboarding();
   const [primer, setPrimer] = useState(false);
 
+  // Weekly report is a Pro feature — only schedule it for Pro users.
+  const weekly = data.weeklyReport && data.pro;
+
   // Sync / decide whether to prompt when state changes.
   useEffect(() => {
     if (!ready || !notificationsAvailable) return;
     let alive = true;
-    const wantsAny = data.notifyClockout || data.weeklyReport;
+    const wantsAny = data.notifyClockout || weekly;
     (async () => {
       if (!wantsAny) {
         await syncNotifications({ schedule: data.schedule, clockout: false, weekly: false });
@@ -31,7 +34,7 @@ export function NotificationSync() {
         await syncNotifications({
           schedule: data.schedule,
           clockout: data.notifyClockout,
-          weekly: data.weeklyReport,
+          weekly,
         });
       } else {
         setPrimer(true);
@@ -40,25 +43,25 @@ export function NotificationSync() {
     return () => {
       alive = false;
     };
-  }, [ready, data.notifyClockout, data.weeklyReport, data.schedule]);
+  }, [ready, data.notifyClockout, weekly, data.schedule]);
 
   // Re-check when returning from system settings (permission may have changed).
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active' || !ready || (!data.notifyClockout && !data.weeklyReport)) return;
+      if (state !== 'active' || !ready || (!data.notifyClockout && !weekly)) return;
       getNotificationStatus().then(({ status }) => {
         if (status === 'granted') {
           setPrimer(false);
           syncNotifications({
             schedule: data.schedule,
             clockout: data.notifyClockout,
-            weekly: data.weeklyReport,
+            weekly,
           }).catch(() => {});
         }
       });
     });
     return () => sub.remove();
-  }, [ready, data.notifyClockout, data.weeklyReport, data.schedule]);
+  }, [ready, data.notifyClockout, weekly, data.schedule]);
 
   const onEnable = () => {
     setPrimer(false);

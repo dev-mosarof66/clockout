@@ -5,16 +5,21 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
+import android.util.Base64
 import androidx.core.content.ContextCompat
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.util.Calendar
 
 const val PREFS = "clockout_engine"
@@ -127,7 +132,8 @@ class ClockoutEngineModule : Module() {
     }
 
     // Smart-suggest: most-used launchable apps over the last `days`, as
-    // [{"pkg","label","minutes"}] sorted desc. Needs Usage access; empty otherwise.
+    // [{"pkg","label","minutes","icon"}] sorted desc — icon is the real installed
+    // app's launcher glyph as a PNG data URI. Needs Usage access; empty otherwise.
     Function("topPackages") { days: Int ->
       val ctx = appContext.reactContext ?: return@Function "[]"
       val usm = ctx.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
@@ -157,7 +163,9 @@ class ClockoutEngineModule : Module() {
           } catch (_: Throwable) {
             pkg.substringAfterLast('.')
           }
-          arr.put(JSONObject().put("pkg", pkg).put("label", label).put("minutes", ms / 60_000L))
+          val obj = JSONObject().put("pkg", pkg).put("label", label).put("minutes", ms / 60_000L)
+          iconDataUri(pm, pkg, 96)?.let { obj.put("icon", it) }
+          arr.put(obj)
         }
       arr.toString()
     }
@@ -232,6 +240,24 @@ class ClockoutEngineModule : Module() {
         .put("samples", samples)
         .put("confidence", confidence)
         .toString()
+    }
+  }
+
+  // Render an installed app's launcher icon to a PNG data URI (square sizePx),
+  // so JS can show the real app logo. Returns null if the icon can't be loaded.
+  private fun iconDataUri(pm: PackageManager, pkg: String, sizePx: Int): String? {
+    return try {
+      val drawable = pm.getApplicationIcon(pkg)
+      val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+      val canvas = Canvas(bmp)
+      drawable.setBounds(0, 0, sizePx, sizePx)
+      drawable.draw(canvas)
+      val out = ByteArrayOutputStream()
+      bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+      bmp.recycle()
+      "data:image/png;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+    } catch (_: Throwable) {
+      null
     }
   }
 }

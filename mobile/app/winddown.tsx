@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Stack, router } from 'expo-router';
+import { Stack, router, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import LottieView from 'lottie-react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { useOnboarding } from '../lib/onboarding';
 import { colors } from '../theme/colors';
 
 type Step = { icon: keyof typeof Ionicons.glyphMap; title: string; desc: string };
@@ -17,11 +18,15 @@ const STEPS: Step[] = [
 ];
 
 export default function WindDown() {
+  const { data, ready } = useOnboarding();
   const [done, setDone] = useState<Record<number, boolean>>({});
   const completed = Object.values(done).filter(Boolean).length;
   const toggle = (i: number) => setDone((d) => ({ ...d, [i]: !d[i] }));
 
   const finish = () => router.replace('/home');
+
+  // Pro-only: send free users (incl. any deep-link) to the paywall.
+  if (ready && !data.pro) return <Redirect href="/paywall" />;
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
